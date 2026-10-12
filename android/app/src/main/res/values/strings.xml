@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nayan Kalpande Appreciation Society</string>
+    <string name="widget_name">NKAS P&amp;L</string>
+    <string name="widget_description">Today\'s paper P&amp;L and bot status for US and NSE</string>
+    <string name="channel_health">Bot health</string>
+    <string name="channel_health_desc">Alerts when a trading bot stops publishing or a workflow run fails</string>
+    <string name="channel_summary">Daily summary</string>
+    <string name="channel_summary_desc">End-of-day paper P&amp;L summary per market</string>
+</resources>
