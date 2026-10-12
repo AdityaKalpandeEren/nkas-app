@@ -331,9 +331,15 @@ def build_us_lcr(root, mk):
         return ["⭐ PERFECT" if truthy(r.get("perfect")) else None, r.get("bucket"),
                 f"+{float(r['pct']):.1f}% day" if fnum(r.get("pct")) is not None else None,
                 f"RVOL {float(r['rvol']):.1f}x" if fnum(r.get("rvol")) is not None else None]
-    return [_runners("us_lcr", "LCR Large-Cap Runners", "us_lcr",
-                     "Mid/large/mega caps (>= $2B) with time-adjusted volume shocks, pullback above the daily EMAs",
-                     os.path.join(root, "live_state", "us_lcr"), "shares", tags, _open_runner)]
+    out = [_runners("us_lcr", "LCR Large-Cap Runners", "us_lcr",
+                    "Mid/large/mega caps (>= $2B) with time-adjusted volume shocks, pullback above the daily EMAs",
+                    os.path.join(root, "live_state", "us_lcr"), "shares", tags, _open_runner)]
+    sw = os.path.join(root, "live_state", "us_lcr", "swing")
+    if os.path.exists(sw):                             # LCR SWING: same entries, 8% stop, held up to 3 sessions
+        out.append(_runners("us_lcr_swing", "LCR Swing (max 3 days)", "us_lcr_swing",
+                            "Same entries as LCR, $10k each (max 10 open), 8% stop, sold at the 3rd session's close",
+                            sw, "shares", tags, _open_runner, style="swing"))
+    return out
 
 
 # ─── swing portfolios (V5, both markets) ──────────────────────────────────
