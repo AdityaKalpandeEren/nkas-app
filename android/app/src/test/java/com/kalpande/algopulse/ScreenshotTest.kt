@@ -60,6 +60,36 @@ class ScreenshotTest {
         onOpenSystem = { _, _ -> }, onOpenSettings = {}, onOpenHealth = {},
     )
 
+    /** Real NSE dashboard of 2026-10-15 10:48 IST with open positions marked to market. */
+    private fun openState(): com.kalpande.algopulse.ui.UiState {
+        val bytes = javaClass.classLoader!!.getResourceAsStream("nse_open_sample.json.gz")!!.readBytes()
+        val nse = com.kalpande.algopulse.data.MarketData(Market.NSE, com.kalpande.algopulse.data.DashboardRepository.parse(bytes))
+        return state.copy(markets = state.markets + (Market.NSE to state.markets.getValue(Market.NSE).copy(data = nse)))
+    }
+
+    @Test fun strategiesOpenPnl() = snap("13_strategies_open_pnl") {
+        StrategiesScreen(openState(), Instant.parse("2026-10-15T05:20:00Z"), MarketFilter.NSE, {}, Scope.ALL, {}) { _, _ -> }
+    }
+
+    @Test fun detailLcrOpenPnl() = snap("14_detail_nse_lcr_open_pnl") {
+        SystemDetailScreen(openState(), Instant.parse("2026-10-15T05:20:00Z"), Market.NSE, "nse_lcr") {}
+    }
+
+    /** NSE dashboard with the V8 trend book from its 2026-10-16 dry run (6 buys, trailing stops). */
+    private fun v8State(): com.kalpande.algopulse.ui.UiState {
+        val bytes = javaClass.classLoader!!.getResourceAsStream("nse_v8_sample.json.gz")!!.readBytes()
+        val nse = com.kalpande.algopulse.data.MarketData(Market.NSE, com.kalpande.algopulse.data.DashboardRepository.parse(bytes))
+        return state.copy(markets = state.markets + (Market.NSE to state.markets.getValue(Market.NSE).copy(data = nse)))
+    }
+
+    @Test fun strategiesV8() = snap("15_strategies_nse_v8") {
+        StrategiesScreen(v8State(), Instant.parse("2026-10-16T12:00:00Z"), MarketFilter.NSE, {}, Scope.ALL, {}) { _, _ -> }
+    }
+
+    @Test fun detailV8() = snap("16_detail_nse_v8") {
+        SystemDetailScreen(v8State(), Instant.parse("2026-10-16T12:00:00Z"), Market.NSE, "nse_v8") {}
+    }
+
     @Test fun overviewAllDark() = snap("01_overview_all_dark") { overview(MarketFilter.ALL) }
 
     @Test fun overviewUsDark() = snap("02_overview_us_dark") { overview(MarketFilter.US) }

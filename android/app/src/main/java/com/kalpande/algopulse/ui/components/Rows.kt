@@ -208,6 +208,24 @@ fun SystemCard(
                 }
             }
         }
+        // winners still held (LCR keeps them up to 5 sessions) are not in the realized figures above
+        if (!s.isPortfolio && s.openPnl != null && s.open.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            OpenPnlLine(s, ccy)
+        }
+    }
+}
+
+/** "Open (3): +Rs 11.5k · All-time incl. open: -Rs 30.9k" */
+@Composable
+fun OpenPnlLine(s: SystemDto, ccy: String) {
+    val style = MaterialTheme.typography.labelMedium
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Open (${s.open.size}) ", style = style, color = muted)
+        PnlText(s.openPnl ?: 0.0, ccy, style = style, compact = true)
+        Text("  ·  All-time incl. open ", style = style, color = muted)
+        PnlText(s.pnlInclOpen ?: 0.0, ccy, style = style, compact = true, fontWeight = FontWeight.SemiBold)
     }
 }
 
