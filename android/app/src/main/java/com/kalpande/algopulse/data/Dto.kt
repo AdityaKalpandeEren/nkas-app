@@ -82,7 +82,11 @@ data class SystemDto(
     @SerialName("start_equity") val startEquity: Double? = null,
     @SerialName("bench_start") val benchStart: Double? = null,
     val cash: Double? = null,
+    /** mark-to-market of the open positions (gross, before exit charges); null = nothing priced. */
+    @SerialName("open_pnl") val openPnl: Double? = null,
 ) {
+    /** realized all-time P&L plus what the open positions are worth now. */
+    val pnlInclOpen: Double? get() = openPnl?.let { days.sumOf { d -> d.pnl } + it }
     val isPortfolio: Boolean get() = kind == "portfolio"
 }
 

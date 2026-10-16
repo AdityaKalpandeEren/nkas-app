@@ -33,6 +33,8 @@ import math
 import os
 import re
 import subprocess
+import urllib.parse
+import urllib.request
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -504,6 +506,62 @@ PRESENT = {"research": ("live_state/paper_trades_all.csv", "live_state/state.jso
 ORDER = ["us_v3", "us_v5", "us_scr", "us_lcr", "nse_v33", "nse_v5", "nse_v7", "nse_scr", "nse_lcr", "research"]
 
 
+# ─── open positions marked to market ──────────────────────────────────────
+# Systems that close losers fast but hold winners (LCR: up to 5 sessions) look
+# worse than they are on realized P&L alone. Every run prices each open position
+# (Yahoo spark, ~1 min delayed; NSE as SYMBOL.NS) and adds the system total as
+# "open_pnl" (gross, before exit charges). Runs on carried-over systems too, so
+# the figure stays fresh even when no state cache changed.
+
+def yahoo_last(symbols, suffix=""):
+    out = {}
+    syms = sorted(set(symbols))
+    for i in range(0, len(syms), 20):
+        batch = syms[i:i + 20]
+        url = ("https://query1.finance.yahoo.com/v8/finance/spark?range=1d&interval=5m&symbols="
+               + urllib.parse.quote(",".join(x + suffix for x in batch), safe=","))
+        for _ in range(3):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    res = json.load(r)                   # v8 spark: {"TCS.NS": {"close": [...], ...}, ...}
+                for sym, it in res.items():
+                    px = next((c for c in reversed((it or {}).get("close") or []) if c is not None), None)
+                    if px and sym.endswith(suffix):
+                        out[sym[:len(sym) - len(suffix)] if suffix else sym] = float(px)
+                break
+            except Exception as e:                       # prices are a nice-to-have: never fail the build
+                print(f"[mark] yahoo batch failed: {e!r}", file=sys.stderr)
+    return out
+
+
+def mark_open(systems, market, prices=None):
+    """Fill last / upnl on open positions that lack them and set open_pnl per trades system."""
+    need = {o["sym"] for s in systems if s.get("kind", "trades") == "trades" for o in s.get("open", [])
+            if o.get("sym") and o.get("ep") is not None and o.get("q")}
+    if prices is None:
+        prices = yahoo_last(need, ".NS" if market == "NSE" else "") if need else {}
+    for s in systems:
+        if s.get("kind", "trades") != "trades":
+            continue
+        tot, n = 0.0, 0
+        for o in s.get("open", []):
+            ep, q, last = o.get("ep"), o.get("q"), prices.get(o.get("sym")) or o.get("last")
+            if ep is None or not q or last is None:
+                if o.get("upnl") is not None:            # research rows: P&L already in money from R x risk unit
+                    tot += o["upnl"]
+                    n += 1
+                continue
+            u = (last - ep) * q if o.get("side", "L") == "L" else (ep - last) * q
+            o["last"], o["upnl"] = round(last, 4), round(u, 2)
+            tot += u
+            n += 1
+        s.pop("open_pnl", None)
+        if n:
+            s["open_pnl"], s["open_priced"] = round(tot, 2), n
+    return systems
+
+
 # ─── health (workflow runs) ───────────────────────────────────────────────
 
 def gh_api(path):
@@ -628,6 +686,7 @@ def cmd_build(a):
                 print(f"[build] {g} FAILED: {e!r}", file=sys.stderr)
         systems += prev_by_src.get(g, [])
     systems = [s for s in systems if s.get("code") not in APP_HIDDEN]      # incl. ones carried over from prev
+    mark_open(systems, a.market)
     health = {}
     if a.health and os.path.exists(a.health):
         health = read_json(a.health, {}) or {}

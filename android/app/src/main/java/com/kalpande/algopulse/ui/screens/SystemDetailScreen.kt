@@ -87,6 +87,7 @@ import com.kalpande.algopulse.ui.components.Ring
 import com.kalpande.algopulse.ui.components.ScreenHeader
 import com.kalpande.algopulse.ui.components.ScreenScaffold
 import com.kalpande.algopulse.ui.components.SectionHeader
+import com.kalpande.algopulse.ui.components.OpenPnlLine
 import com.kalpande.algopulse.ui.components.SegmentedControl
 import com.kalpande.algopulse.ui.components.SideBadge
 import com.kalpande.algopulse.ui.components.StatTile
@@ -163,6 +164,7 @@ fun SystemDetailScreen(state: UiState, now: Instant, market: Market, id: String,
                     val leftover = s.style == "intraday" && (parseDate(s.status.asof)?.isBefore(data.today(now)) == true)
                     AppCard(pad.fillMaxWidth()) {
                         SectionHeader("Open positions", subtitle = "${s.open.size} open")
+                        if (!s.isPortfolio && s.openPnl != null) OpenPnlLine(s, ccy)
                         s.open.forEach { OpenRow(it, s.code, ccy, zone, stale = leftover) }
                     }
                 }
@@ -245,6 +247,13 @@ private fun HeroStats(s: SystemDto, total: Agg, today: Agg, session: LocalDate, 
                         if (showR && total.rN > 0) " · ${Fmt.r(total.rSum)}" else "",
                     style = MaterialTheme.typography.bodySmall.tnum(), color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (!s.isPortfolio && s.openPnl != null && s.open.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Incl. ${s.open.size} open ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        PnlText(total.pnl + s.openPnl, ccy, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
             // W/L counts go under the ring: inside it, four-digit counts ("1.1kW · 1.7kL") run into the stroke
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
