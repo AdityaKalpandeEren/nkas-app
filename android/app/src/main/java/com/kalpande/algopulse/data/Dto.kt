@@ -180,6 +180,8 @@ data class HoldingDto(
     val w: Double? = null,
     val since: String? = null,
     val sector: String? = null,
+    /** V8 trend book: the trailing stop (a close under it sells at the next open). */
+    val stop: Double? = null,
 )
 
 @Serializable

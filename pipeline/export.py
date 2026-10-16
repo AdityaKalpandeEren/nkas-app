@@ -56,7 +56,7 @@ MARKETS = {
         "ccy": "INR", "tz": "Asia/Kolkata", "open": "09:15", "close": "15:30", "bench": "NIFTY 50",
         "workflow": "nse-alert-scan.yml",
         "groups": {"research": "nse-live-state-", "nse_v33": "nse-v33-", "nse_v5": "nse-v5-",
-                   "nse_v7": "nse-v7-", "nse_scr": "nse-scr-", "nse_lcr": "nse-lcr-"},
+                   "nse_v7": "nse-v7-", "nse_v8": "nse-v8-", "nse_scr": "nse-scr-", "nse_lcr": "nse-lcr-"},
     },
 }
 
@@ -352,7 +352,7 @@ def build_us_lcr(root, mk):
 
 # ─── swing portfolios (V5, both markets) ──────────────────────────────────
 
-def _portfolio(sid, name, code, desc, d, bench_key, bench_name):
+def _portfolio(sid, name, code, desc, d, bench_key, bench_name, status_fn=None):
     st = read_json(os.path.join(d, "state.json"), {}) or {}
     fills = [{"d": r["date"], "sym": r["symbol"], "act": r.get("side"), "q": fnum(r.get("qty"), 0),
               "px": fnum(r.get("price"), 4), "cf": fnum(r.get("cash_flow"), 2), "pnl": fnum(r.get("realised_pnl"), 2)}
@@ -385,11 +385,14 @@ def _portfolio(sid, name, code, desc, d, bench_key, bench_name):
                                "val": round(val, 2) if val is not None else None,
                                "upnl": round(val - cost, 2) if val is not None and cost is not None else None,
                                "w": round(val / eq_now * 100, 2) if val is not None and eq_now else None,
-                               "since": p.get("since"), "sector": p.get("sector")}))
+                               "since": p.get("since"), "sector": p.get("sector"),
+                               "stop": fnum(p.get("stop"), 2)}))                # V8: trailing stop
     holdings.sort(key=lambda h: -(h.get("val") or 0))
     nxt = None
     if st.get("sessions_since_rebalance") is not None:
         nxt = f"rebalanced {st.get('last_rebalance')}, {st['sessions_since_rebalance']} session(s) ago"
+    if status_fn:
+        nxt = status_fn(st)
     s = system(sid, name, code, "Models", "swing", desc,
                status=clean({"level": "warn" if st.get("rebalance_pending") else "ok", "text": nxt,
                              "asof": st.get("last_day"),
@@ -420,6 +423,24 @@ def build_nse_v7(root, mk):
                        "Top 30 of the NSE top-200 by 6/12-month return / volatility (80%) and rising delivery % (20%), "
                        "monthly rebalance, 10% stop-loss, half exposure in high-VIX downtrends, Rs 10 lakh paper",
                        os.path.join(root, "live_state", "v7"), "nifty", "NIFTY 50")]
+
+
+def _v8_status(st):
+    """'12 names · nearest stop 4.2% below (SYM)' - V8 has no rebalances, only trailing stops."""
+    pos = st.get("positions") or {}
+    if not pos:
+        return "no positions yet - buys new 2-year closing highs at the next open"
+    gaps = [(1 - fnum(p.get("stop")) / fnum(p.get("last_px")), sym) for sym, p in pos.items()
+            if fnum(p.get("last_px")) and fnum(p.get("stop"))]
+    near = min(gaps) if gaps else None
+    return f"{len(pos)} names" + (f" · nearest stop {near[0] * 100:.1f}% below ({near[1]})" if near else "")
+
+
+def build_nse_v8(root, mk):
+    return [_portfolio("nse_v8", "V8 Trend", "nse_v8",
+                       "Trend following: buys NSE stocks / ETFs at a 2-year closing high, trailing stop 10 x ATR(42) "
+                       "under the highest close, max 30 names, 1% risk each, Rs 10 lakh paper",
+                       os.path.join(root, "live_state", "v8"), "nifty", "NIFTY 50", status_fn=_v8_status)]
 
 
 # ─── NSE models ───────────────────────────────────────────────────────────
@@ -495,15 +516,16 @@ def build_nse_lcr(root, mk):
 
 BUILDERS = {"research": build_research, "us_v3": build_us_v3, "us_v5": build_us_v5, "us_scr": build_us_scr,
             "us_lcr": build_us_lcr, "nse_v33": build_nse_v33, "nse_v5": build_nse_v5, "nse_v7": build_nse_v7,
-            "nse_scr": build_nse_scr, "nse_lcr": build_nse_lcr}
+            "nse_v8": build_nse_v8, "nse_scr": build_nse_scr, "nse_lcr": build_nse_lcr}
 
 # a group counts as restored this run when its state is present in the workspace
 PRESENT = {"research": ("live_state/paper_trades_all.csv", "live_state/state.json"),
            "us_v3": ("live_state/us_v3",), "us_v5": ("live_state/us_v5",), "us_scr": ("live_state/us_scr",),
            "us_lcr": ("live_state/us_lcr",), "nse_v33": ("live_state/v33",), "nse_v5": ("live_state/v5",),
-           "nse_v7": ("live_state/v7",), "nse_scr": ("live_state/nse_scr",), "nse_lcr": ("live_state/nse_lcr",)}
+           "nse_v7": ("live_state/v7",), "nse_v8": ("live_state/v8",), "nse_scr": ("live_state/nse_scr",),
+           "nse_lcr": ("live_state/nse_lcr",)}
 
-ORDER = ["us_v3", "us_v5", "us_scr", "us_lcr", "nse_v33", "nse_v5", "nse_v7", "nse_scr", "nse_lcr", "research"]
+ORDER = ["us_v3", "us_v5", "us_scr", "us_lcr", "nse_v33", "nse_v5", "nse_v7", "nse_v8", "nse_scr", "nse_lcr", "research"]
 
 
 # ─── open positions marked to market ──────────────────────────────────────
